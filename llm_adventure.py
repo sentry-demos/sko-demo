@@ -89,20 +89,40 @@ class AdventureEngine:
                     option_lines.append(stripped_line)
                 elif not in_options:
                     narrative_lines.append(line)
-                
+                    
             narrative_text = "\n".join(narrative_lines).strip()
             
             # Clean options: remove numbers and ensure action verb format
             options = []
+            action_verbs = ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']
+            
             for opt in option_lines:
                 # Remove numbering and clean whitespace
-                cleaned = opt.split('.', 1)[1].strip()
+                cleaned = opt.split('.', 1)[1].strip() if '.' in opt else opt.strip()
                 # Ensure option starts with action verb
-                if cleaned and not any(cleaned.lower().startswith(verb) for verb in ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']):
+                if cleaned and not any(cleaned.lower().startswith(verb) for verb in action_verbs):
                     cleaned = f"Debug {cleaned}"
-                options.append(cleaned)
+                if cleaned:  # Only append non-empty options
+                    options.append(cleaned)
             
-            return narrative_text, [options[0], options[1], options[2]]
+            # Ensure minimum number of options with relevant fallbacks
+            fallback_options = [
+                "Check system logs for errors",
+                "Monitor resource utilization",
+                "Debug application performance"
+            ]
+            
+            if len(options) == 0:
+                options = fallback_options
+            elif len(options) == 1:
+                options.append("Monitor system metrics")
+                options.append("Check error logs")
+            elif len(options) == 2:
+                options.append("Analyze system performance")
+                
+            # Ensure we don't return more than 3 options
+            return narrative_text, options[:3]
+            
         except Exception as e:
             with sentry_sdk.push_scope() as scope:
                 response_hash = hash(response)
@@ -113,7 +133,9 @@ class AdventureEngine:
                     str(response_hash)
                 ]
                 sentry_sdk.capture_exception(e)
-            raise
+                # Return a safe fallback in case of parsing error
+                return ("An unexpected error occurred during your debugging adventure.", 
+                       ["Check system status", "Review error logs", "Contact support team"])
 
 
 def initialize_state():
