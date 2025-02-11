@@ -51,9 +51,10 @@ class AdventureEngine:
         if chosen_option:
             prompt += f"\nThe engineer chose to: {chosen_option}. "
         
+        
         num_options = random.randint(2, 3)
         prompt += "\nNow describe what happens next, maintaining technical accuracy and suspense. "
-        prompt += f"End with EXACTLY {num_options} clearly formatted action options (no more, no less):\n"
+        prompt += f"Provide EXACTLY {num_options} numbered options (no more, no less), each starting with one of these action verbs: check, deploy, run, monitor, debug, analyze, restart, or test.\n"
         
         for i in range(num_options):
             prompt += f"{i+1}. [Action verb] [specific technical approach]\n"
@@ -90,19 +91,32 @@ class AdventureEngine:
                 elif not in_options:
                     narrative_lines.append(line)
                 
+                
             narrative_text = "\n".join(narrative_lines).strip()
             
-            # Clean options: remove numbers and ensure action verb format
+            # Clean and validate options
             options = []
+            valid_verbs = ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']
+            
             for opt in option_lines:
                 # Remove numbering and clean whitespace
                 cleaned = opt.split('.', 1)[1].strip()
-                # Ensure option starts with action verb
-                if cleaned and not any(cleaned.lower().startswith(verb) for verb in ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']):
-                    cleaned = f"Debug {cleaned}"
-                options.append(cleaned)
+                if cleaned:
+                    # Ensure option starts with action verb
+                    if not any(cleaned.lower().startswith(verb) for verb in valid_verbs):
+                        cleaned = f"Debug {cleaned}"
+                    options.append(cleaned)
             
-            return narrative_text, [options[0], options[1], options[2]]
+            # Ensure minimum of 2 options
+            if len(options) < 2:
+                options.extend([
+                    "Debug the system logs",
+                    "Monitor application metrics"
+                ][:2 - len(options)])
+            
+            # Return actual options without assuming fixed size
+            return narrative_text, options
+            
         except Exception as e:
             with sentry_sdk.push_scope() as scope:
                 response_hash = hash(response)
@@ -113,7 +127,9 @@ class AdventureEngine:
                     str(response_hash)
                 ]
                 sentry_sdk.capture_exception(e)
-            raise
+            # Provide fallback options in case of parsing failure
+            return ("An unexpected error occurred during the debugging process.", 
+                    ["Debug the system", "Monitor the application"])
 
 
 def initialize_state():
