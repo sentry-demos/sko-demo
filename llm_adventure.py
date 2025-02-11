@@ -102,7 +102,17 @@ class AdventureEngine:
                     cleaned = f"Debug {cleaned}"
                 options.append(cleaned)
             
-            return narrative_text, [options[0], options[1], options[2]]
+            # Ensure we have at least one option
+            if not options:
+                options = ["Debug the issue", "Check system logs", "Monitor performance"]
+
+            # If we have fewer than requested options, pad with defaults
+            while len(options) < 2:  # Minimum 2 options
+                options.append("Investigate further")
+            
+            # Return only available options (max 3)
+            return narrative_text, options[:3]
+            
         except Exception as e:
             with sentry_sdk.push_scope() as scope:
                 response_hash = hash(response)
@@ -113,7 +123,10 @@ class AdventureEngine:
                     str(response_hash)
                 ]
                 sentry_sdk.capture_exception(e)
-            raise
+                # Return fallback options in case of error
+                return (narrative_text if 'narrative_text' in locals() 
+                       else "An unexpected error occurred. What would you like to do?",
+                       ["Check system status", "Review error logs", "Contact support"])
 
 
 def initialize_state():
