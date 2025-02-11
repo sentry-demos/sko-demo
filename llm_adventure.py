@@ -51,12 +51,10 @@ class AdventureEngine:
         if chosen_option:
             prompt += f"\nThe engineer chose to: {chosen_option}. "
         
-        num_options = random.randint(2, 3)
         prompt += "\nNow describe what happens next, maintaining technical accuracy and suspense. "
-        prompt += f"End with EXACTLY {num_options} clearly formatted action options (no more, no less):\n"
-        
-        for i in range(num_options):
-            prompt += f"{i+1}. [Action verb] [specific technical approach]\n"
+        prompt += "End with 1-3 clearly formatted action options:\n"
+        prompt += "Each option should be formatted as:\n"
+        prompt += "[number]. [Action verb] [specific technical approach]\n"
         return prompt.rstrip()
 
     def call_openai(self, prompt: str) -> str:
@@ -100,9 +98,10 @@ class AdventureEngine:
                 # Ensure option starts with action verb
                 if cleaned and not any(cleaned.lower().startswith(verb) for verb in ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']):
                     cleaned = f"Debug {cleaned}"
-                options.append(cleaned)
+                if cleaned:  # Only append non-empty options
+                    options.append(cleaned)
             
-            return narrative_text, [options[0], options[1], options[2]]
+            return narrative_text, options  # Return all valid options without forcing length
         except Exception as e:
             with sentry_sdk.push_scope() as scope:
                 response_hash = hash(response)
@@ -113,7 +112,8 @@ class AdventureEngine:
                     str(response_hash)
                 ]
                 sentry_sdk.capture_exception(e)
-            raise
+                # Return an empty list of options in case of error
+                return "An error occurred processing the response.", []
 
 
 def initialize_state():
@@ -179,8 +179,7 @@ def render_game(engine: AdventureEngine):
     # Main narrative display
     if st.session_state['current_narrative']:
         st.write(st.session_state['current_narrative'])
-        if st.session_state['current_options']:
-            # st.write("\nWhat will you do next?\n")
+        if st.session_state['current_options']:  # Only show options if we have any
             for option in st.session_state['current_options']:
                 if st.button(option, key=option):
                     # Append the chosen option and previous narrative to history
@@ -207,6 +206,16 @@ def render_game(engine: AdventureEngine):
                     st.session_state['current_narrative'] = narrative
                     st.session_state['current_options'] = options
                     st.rerun()
+        else:
+            # Handle case with no options - provide a way to continue
+            if st.button("Continue"):
+                # Generate new narrative without requiring previous option
+                prompt = engine.generate_prompt(st.session_state['adventure_history'])
+                response = engine.call_openai(prompt)
+                narrative, options = engine.parse_response(response)
+                st.session_state['current_narrative'] = narrative
+                st.session_state['current_options'] = options
+                st.rerun()
     else:
         st.write("Welcome to the overengineered adventure game! Click 'Start Adventure' to begin.")
 
