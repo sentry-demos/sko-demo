@@ -51,28 +51,37 @@ class AdventureEngine:
         if chosen_option:
             prompt += f"\nThe engineer chose to: {chosen_option}. "
         
-        num_options = random.randint(2, 3)
+        # Remove random number of options and always request exactly 3
         prompt += "\nNow describe what happens next, maintaining technical accuracy and suspense. "
-        prompt += f"End with EXACTLY {num_options} clearly formatted action options (no more, no less):\n"
-        
-        for i in range(num_options):
-            prompt += f"{i+1}. [Action verb] [specific technical approach]\n"
+        prompt += "End with EXACTLY 3 clearly formatted action options:\n"
+        prompt += "1. [Action verb] [specific technical approach]\n"
+        prompt += "2. [Action verb] [specific technical approach]\n"
+        prompt += "3. [Action verb] [specific technical approach]\n"
         return prompt.rstrip()
 
     def call_openai(self, prompt: str) -> str:
         try:
             response = self.client.chat.completions.create(
-                            model="gpt-4o-mini",
-                            messages=[
-                                {"role": "system", "content": "You are a technical storyteller familiar with software engineering, DevOps, and debugging production issues. Always format action options as 'Action verb + specific technical approach'."},
-                                {"role": "user", "content": prompt}
-                            ],
-                            temperature=self.temperature,
-                        )
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a technical storyteller familiar with software engineering, DevOps, and debugging production issues. Always provide exactly 3 action options, each starting with an action verb."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=self.temperature,
+                max_tokens=500,
+                presence_penalty=0.6,
+                frequency_penalty=0.1
+            )
             narrative = response.choices[0].message.content.strip()
             return narrative
         except Exception as e:
-            return f"Error calling OpenAI API: {e}"
+            default_response = (
+                "An error occurred while generating the narrative. Let's debug the system logs.\n"
+                "1. Check system logs for errors\n"
+                "2. Monitor system metrics\n"
+                "3. Review error traces"
+            )
+            return default_response
 
     def parse_response(self, response: str) -> Tuple[str, List[str]]:
         try:
@@ -89,20 +98,26 @@ class AdventureEngine:
                     option_lines.append(stripped_line)
                 elif not in_options:
                     narrative_lines.append(line)
-                
+                    
             narrative_text = "\n".join(narrative_lines).strip()
             
-            # Clean options: remove numbers and ensure action verb format
+            # Clean and process options
             options = []
+            action_verbs = ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']
+            
             for opt in option_lines:
-                # Remove numbering and clean whitespace
                 cleaned = opt.split('.', 1)[1].strip()
-                # Ensure option starts with action verb
-                if cleaned and not any(cleaned.lower().startswith(verb) for verb in ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']):
+                if cleaned and not any(cleaned.lower().startswith(verb) for verb in action_verbs):
                     cleaned = f"Debug {cleaned}"
                 options.append(cleaned)
             
-            return narrative_text, [options[0], options[1], options[2]]
+            # Pad with default options if needed
+            while len(options) < 3:
+                options.append(DEFAULT_OPTIONS[len(options)])
+            
+            # Ensure we only return exactly 3 options
+            return narrative_text, options[:3]
+            
         except Exception as e:
             with sentry_sdk.push_scope() as scope:
                 response_hash = hash(response)
@@ -113,7 +128,9 @@ class AdventureEngine:
                     str(response_hash)
                 ]
                 sentry_sdk.capture_exception(e)
-            raise
+                
+            # Return safe fallback in case of any error
+            return "A technical issue has occurred. Please proceed with standard debugging steps.", DEFAULT_OPTIONS
 
 
 def initialize_state():
