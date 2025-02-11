@@ -75,6 +75,13 @@ class AdventureEngine:
             return f"Error calling OpenAI API: {e}"
 
     def parse_response(self, response: str) -> Tuple[str, List[str]]:
+        # Define default options that can be used as fallbacks
+        default_options = [
+            "Check system logs for errors",
+            "Monitor application metrics",
+            "Run diagnostic tests"
+        ]
+        
         try:
             lines = response.splitlines()
             narrative_lines = []
@@ -98,11 +105,21 @@ class AdventureEngine:
                 # Remove numbering and clean whitespace
                 cleaned = opt.split('.', 1)[1].strip()
                 # Ensure option starts with action verb
-                if cleaned and not any(cleaned.lower().startswith(verb) for verb in ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']):
-                    cleaned = f"Debug {cleaned}"
-                options.append(cleaned)
+                if cleaned:
+                    if not any(cleaned.lower().startswith(verb) for verb in ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']):
+                        cleaned = f"Debug {cleaned}"
+                    options.append(cleaned)
             
-            return narrative_text, [options[0], options[1], options[2]]
+            # Ensure we have at least 2 options
+            while len(options) < 2:
+                for default in default_options:
+                    if default not in options:
+                        options.append(default)
+                        break
+            
+            # Return only the actual number of options (2 or 3)
+            return narrative_text, options[:3]
+            
         except Exception as e:
             with sentry_sdk.push_scope() as scope:
                 response_hash = hash(response)
@@ -113,7 +130,8 @@ class AdventureEngine:
                     str(response_hash)
                 ]
                 sentry_sdk.capture_exception(e)
-            raise
+            # Return a safe fallback if parsing fails
+            return "A system error occurred. Please try again.", default_options[:3]
 
 
 def initialize_state():
