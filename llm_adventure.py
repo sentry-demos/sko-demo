@@ -80,6 +80,13 @@ class AdventureEngine:
             narrative_lines = []
             option_lines = []
             
+            # Default options for fallback scenarios
+            default_options = [
+                "Check system logs for errors",
+                "Monitor resource utilization",
+                "Analyze recent deployments"
+            ]
+            
             # Find where options start (numbered lines)
             in_options = False
             for line in lines:
@@ -100,9 +107,16 @@ class AdventureEngine:
                 # Ensure option starts with action verb
                 if cleaned and not any(cleaned.lower().startswith(verb) for verb in ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']):
                     cleaned = f"Debug {cleaned}"
-                options.append(cleaned)
+                if cleaned:  # Only append non-empty options
+                    options.append(cleaned)
             
-            return narrative_text, [options[0], options[1], options[2]]
+            # If we have fewer than 2 options, pad with defaults
+            while len(options) < 2:
+                options.append(default_options[len(options)])
+                
+            # Return up to 3 options, but allow for 2 or 3 based on what's available
+            return narrative_text, options[:3]
+            
         except Exception as e:
             with sentry_sdk.push_scope() as scope:
                 response_hash = hash(response)
@@ -113,7 +127,8 @@ class AdventureEngine:
                     str(response_hash)
                 ]
                 sentry_sdk.capture_exception(e)
-            raise
+                # Return a safe fallback in case of error
+                return "An error occurred processing the response.", default_options[:3]
 
 
 def initialize_state():
