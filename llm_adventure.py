@@ -52,8 +52,8 @@ class AdventureEngine:
             prompt += f"\nThe engineer chose to: {chosen_option}. "
         
         num_options = random.randint(2, 3)
-        prompt += "\nNow describe what happens next, maintaining technical accuracy and suspense. "
-        prompt += f"End with EXACTLY {num_options} clearly formatted action options (no more, no less):\n"
+        prompt += (f"\nNow describe what happens next, maintaining technical accuracy and suspense. "
+                   f"Provide exactly {num_options} technical action options formatted as:\n")
         
         for i in range(num_options):
             prompt += f"{i+1}. [Action verb] [specific technical approach]\n"
@@ -102,7 +102,14 @@ class AdventureEngine:
                     cleaned = f"Debug {cleaned}"
                 options.append(cleaned)
             
-            return narrative_text, [options[0], options[1], options[2]]
+            # Ensure we have at least 2 options
+            if len(options) < 2:
+                options.extend([
+                    "Debug the system logs for more information",
+                    "Monitor system metrics for anomalies"
+                ][:2 - len(options)])
+                
+            return narrative_text, options
         except Exception as e:
             with sentry_sdk.push_scope() as scope:
                 response_hash = hash(response)
@@ -113,7 +120,9 @@ class AdventureEngine:
                     str(response_hash)
                 ]
                 sentry_sdk.capture_exception(e)
-            raise
+            # Return a safe fallback in case of parsing errors
+            return ("An unexpected error occurred while processing the response.", 
+                    ["Debug the system logs", "Monitor system metrics"])
 
 
 def initialize_state():
