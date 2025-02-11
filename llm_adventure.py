@@ -75,35 +75,45 @@ class AdventureEngine:
             return f"Error calling OpenAI API: {e}"
 
     def parse_response(self, response: str) -> Tuple[str, List[str]]:
-        # Parses the response to separate narrative text from options.
-        # We expect exactly 3 numbered options after the narrative.
-        lines = response.splitlines()
-        narrative_lines = []
-        option_lines = []
-        
-        # Find where options start (numbered lines)
-        in_options = False
-        for line in lines:
-            stripped_line = line.strip()
-            if stripped_line and stripped_line[0].isdigit() and '.' in stripped_line[:2]:
-                in_options = True
-                option_lines.append(stripped_line)
-            elif not in_options:
-                narrative_lines.append(line)
-                
-        narrative_text = "\n".join(narrative_lines).strip()
-        
-        # Clean options: remove numbers and ensure action verb format
-        options = []
-        for opt in option_lines:
-            # Remove numbering and clean whitespace
-            cleaned = opt.split('.', 1)[1].strip()
-            # Ensure option starts with action verb
-            if cleaned and not any(cleaned.lower().startswith(verb) for verb in ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']):
-                cleaned = f"Debug {cleaned}"
-            options.append(cleaned)
+        try:
+            lines = response.splitlines()
+            narrative_lines = []
+            option_lines = []
             
-        return narrative_text, [options[0], options[1], options[2]]
+            # Find where options start (numbered lines)
+            in_options = False
+            for line in lines:
+                stripped_line = line.strip()
+                if stripped_line and stripped_line[0].isdigit() and '.' in stripped_line[:2]:
+                    in_options = True
+                    option_lines.append(stripped_line)
+                elif not in_options:
+                    narrative_lines.append(line)
+                
+            narrative_text = "\n".join(narrative_lines).strip()
+            
+            # Clean options: remove numbers and ensure action verb format
+            options = []
+            for opt in option_lines:
+                # Remove numbering and clean whitespace
+                cleaned = opt.split('.', 1)[1].strip()
+                # Ensure option starts with action verb
+                if cleaned and not any(cleaned.lower().startswith(verb) for verb in ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']):
+                    cleaned = f"Debug {cleaned}"
+                options.append(cleaned)
+            
+            return narrative_text, [options[0], options[1], options[2]]
+        except Exception as e:
+            with sentry_sdk.push_scope() as scope:
+                response_hash = hash(response)
+                scope.fingerprint = [
+                    "parse_response",
+                    type(e).__name__,
+                    str(e),
+                    str(response_hash)
+                ]
+                sentry_sdk.capture_exception(e)
+            raise
 
 
 def initialize_state():
