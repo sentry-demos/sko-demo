@@ -101,8 +101,16 @@ class AdventureEngine:
                 if cleaned and not any(cleaned.lower().startswith(verb) for verb in ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']):
                     cleaned = f"Debug {cleaned}"
                 options.append(cleaned)
+
+            # Generate fallback options if needed
+            while len(options) < 2:  # Ensure at least 2 options
+                options.append("Debug system logs for more information")
+                
+            # Limit to max 3 options
+            options = options[:3]
+                
+            return narrative_text, options
             
-            return narrative_text, [options[0], options[1], options[2]]
         except Exception as e:
             with sentry_sdk.push_scope() as scope:
                 response_hash = hash(response)
@@ -113,7 +121,9 @@ class AdventureEngine:
                     str(response_hash)
                 ]
                 sentry_sdk.capture_exception(e)
-            raise
+            # Return a safe fallback in case of any parsing errors
+            return ("An unexpected error occurred during the debugging process.", 
+                    ["Check system logs", "Monitor resource usage", "Review error logs"])
 
 
 def initialize_state():
