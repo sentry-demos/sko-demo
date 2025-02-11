@@ -16,7 +16,15 @@ sentry_sdk.init(
 )
 
 
+
+
 class AdventureEngine:
+    DEFAULT_OPTIONS = [
+        "Check application logs",
+        "Monitor system metrics", 
+        "Review error traces"
+    ]
+
     def __init__(self, temperature: float = 0.7):
         self.client = OpenAI(api_key=os.environ["OPENAI_KEY"])
         self.temperature = temperature
@@ -51,12 +59,12 @@ class AdventureEngine:
         if chosen_option:
             prompt += f"\nThe engineer chose to: {chosen_option}. "
         
-        num_options = random.randint(2, 3)
+        # Always request exactly 3 options
         prompt += "\nNow describe what happens next, maintaining technical accuracy and suspense. "
-        prompt += f"End with EXACTLY {num_options} clearly formatted action options (no more, no less):\n"
-        
-        for i in range(num_options):
-            prompt += f"{i+1}. [Action verb] [specific technical approach]\n"
+        prompt += "End with EXACTLY 3 clearly formatted action options:\n"
+        prompt += "1. [Action verb] [specific technical approach]\n"
+        prompt += "2. [Action verb] [specific technical approach]\n"
+        prompt += "3. [Action verb] [specific technical approach]\n"
         return prompt.rstrip()
 
     def call_openai(self, prompt: str) -> str:
@@ -89,7 +97,7 @@ class AdventureEngine:
                     option_lines.append(stripped_line)
                 elif not in_options:
                     narrative_lines.append(line)
-                
+                    
             narrative_text = "\n".join(narrative_lines).strip()
             
             # Clean options: remove numbers and ensure action verb format
@@ -100,9 +108,19 @@ class AdventureEngine:
                 # Ensure option starts with action verb
                 if cleaned and not any(cleaned.lower().startswith(verb) for verb in ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']):
                     cleaned = f"Debug {cleaned}"
-                options.append(cleaned)
+                if cleaned:  # Only append non-empty options
+                    options.append(cleaned)
             
-            return narrative_text, [options[0], options[1], options[2]]
+            # Ensure we have at least 2 options and no more than 3
+            if len(options) < 2:
+                # If we have too few options, add some defaults
+                options.extend(self.DEFAULT_OPTIONS[:3 - len(options)])
+            elif len(options) > 3:
+                # If we have too many options, keep only the first 3
+                options = options[:3]
+                
+            return narrative_text, options
+            
         except Exception as e:
             with sentry_sdk.push_scope() as scope:
                 response_hash = hash(response)
@@ -113,7 +131,8 @@ class AdventureEngine:
                     str(response_hash)
                 ]
                 sentry_sdk.capture_exception(e)
-            raise
+                # Return a valid response even in error case
+                return "An error occurred processing the response.", self.DEFAULT_OPTIONS
 
 
 def initialize_state():
