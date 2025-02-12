@@ -98,11 +98,14 @@ class AdventureEngine:
                 # Remove numbering and clean whitespace
                 cleaned = opt.split('.', 1)[1].strip()
                 # Ensure option starts with action verb
-                if cleaned and not any(cleaned.lower().startswith(verb) for verb in ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']):
-                    cleaned = f"Debug {cleaned}"
-                options.append(cleaned)
-
-            # Generate fallback options if needed
+                if cleaned:
+                    if not any(cleaned.lower().startswith(verb) for verb in ['check', 'deploy', 'run', 'monitor', 'debug', 'analyze', 'restart', 'test']):
+                        cleaned = f"Debug {cleaned}"
+                    options.append(cleaned)
+            
+            # Return all valid options (will be 2-3 as specified in the prompt generation)
+            return narrative_text, options
+            
             while len(options) < 2:  # Ensure at least 2 options
                 options.append("Debug system logs for more information")
                 
