@@ -102,11 +102,18 @@ class AdventureEngine:
                     cleaned = f"Debug {cleaned}"
                 options.append(cleaned)
 
-            # Generate fallback options if needed
-            while len(options) < 2:  # Ensure at least 2 options
-                options.append("Debug system logs for more information")
+            # Ensure minimum of 2 options with default fallbacks
+            default_options = [
+                "Check system logs for anomalies",
+                "Monitor resource utilization patterns",
+                "Analyze recent deployment changes"
+            ]
+            
+            # Fill missing options if needed
+            while len(options) < 2:
+                options.append(default_options[len(options)])
                 
-            # Limit to max 3 options
+            # Cap at 3 options maximum
             options = options[:3]
                 
             return narrative_text, options
@@ -121,9 +128,9 @@ class AdventureEngine:
                     str(response_hash)
                 ]
                 sentry_sdk.capture_exception(e)
-            # Return a safe fallback in case of any parsing errors
+            # Return a safe fallback with exactly 2 options
             return ("An unexpected error occurred during the debugging process.", 
-                    ["Check system logs", "Monitor resource usage", "Review error logs"])
+                    ["Check system logs", "Monitor resource usage"])
 
 
 def initialize_state():
