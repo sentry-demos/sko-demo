@@ -51,13 +51,13 @@ class AdventureEngine:
         if chosen_option:
             prompt += f"\nThe engineer chose to: {chosen_option}. "
         
-        num_options = random.randint(2, 3)
+        # Always request exactly 3 options
         prompt += "\nNow describe what happens next, maintaining technical accuracy and suspense. "
-        prompt += f"End with EXACTLY {num_options} clearly formatted action options (no more, no less):\n"
-        
-        for i in range(num_options):
-            prompt += f"{i+1}. [Action verb] [specific technical approach]\n"
-        return prompt.rstrip()
+        prompt += "End with EXACTLY 3 clearly formatted action options:\n"
+        prompt += "1. [Action verb] [specific technical approach]\n"
+        prompt += "2. [Action verb] [specific technical approach]\n" 
+        prompt += "3. [Action verb] [specific technical approach]"
+        return prompt
 
     def call_openai(self, prompt: str) -> str:
         try:
@@ -90,9 +90,10 @@ class AdventureEngine:
                 elif not in_options:
                     narrative_lines.append(line)
                 
+                
             narrative_text = "\n".join(narrative_lines).strip()
             
-            # Clean options: remove numbers and ensure action verb format
+            # Clean options and ensure we have exactly 3
             options = []
             for opt in option_lines:
                 # Remove numbering and clean whitespace
@@ -102,7 +103,17 @@ class AdventureEngine:
                     cleaned = f"Debug {cleaned}"
                 options.append(cleaned)
             
-            return narrative_text, [options[0], options[1], options[2]]
+            # Add contextual fallback options if needed
+            while len(options) < 3:
+                if len(options) == 0:
+                    options.append("Debug the current issue")
+                elif len(options) == 1:
+                    options.append("Monitor system metrics")
+                else:
+                    options.append("Check error logs")
+                    
+            # Return exactly 3 options, truncating if we somehow get more
+            return narrative_text, options[:3]
         except Exception as e:
             with sentry_sdk.push_scope() as scope:
                 response_hash = hash(response)
@@ -113,7 +124,9 @@ class AdventureEngine:
                     str(response_hash)
                 ]
                 sentry_sdk.capture_exception(e)
-            raise
+            # Provide default options if parsing fails completely
+            return ("An unexpected error occurred during the debugging process.", 
+                    ["Debug the system error", "Check system logs", "Contact support team"])
 
 
 def initialize_state():
